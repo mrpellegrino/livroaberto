@@ -1,0 +1,1 @@
+INSERT INTO "User" (id, name, email, "passwordHash", role, "isActive", "createdAt", "updatedAt") VALUES (gen_random_uuid(), 'Admin', 'admin@livroaberto.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ADMIN', true, NOW(), NOW());
