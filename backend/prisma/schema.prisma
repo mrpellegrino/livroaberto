@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PROFESSOR
+  ALUNO
+}
+
+enum ExtractionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum ActivityMode {
+  INDIVIDUAL
+  PROJETO_LITERARIO
+}
+
+enum EvaluationSessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(ALUNO)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  taughtClasses ClassTeacher[]
+  studentClasses ClassStudent[]
+  activityAssignments ActivityStudentBook[]
+  evaluationSessions EvaluationSession[]
+  evaluationResults EvaluationResult[]
+}
+
+model Book {
+  id        String       @id @default(cuid())
+  title     String
+  author    String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  sources   BookSource[]
+  chunks    BookChunk[]
+  activityBooks ActivityBook[]
+  activityStudentBooks ActivityStudentBook[]
+  evaluationSessions EvaluationSession[]
+}
+
+model BookSource {
+  id               String           @id @default(cuid())
+  bookId           String
+  originalFileName String
+  mimeType         String
+  filePath         String
+  textPath         String?
+  extractionStatus ExtractionStatus @default(PENDING)
+  extractedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  book             Book             @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chunks           BookChunk[]
+
+  @@index([bookId])
+}
+
+model BookChunk {
+  id         String   @id @default(cuid())
+  bookId     String
+  sourceId   String
+  chunkIndex Int
+  content    String
+  createdAt  DateTime @default(now())
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  source     BookSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([bookId, chunkIndex])
+  @@index([sourceId])
+}
+
+model School {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  classes   Classroom[]
+}
+
+model Classroom {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String
+  gradeYear String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teachers  ClassTeacher[]
+  students  ClassStudent[]
+  activities Activity[]
+
+  @@index([schoolId])
+}
+
+model ClassTeacher {
+  id            String    @id @default(cuid())
+  classroomId   String
+  teacherUserId String
+  isResponsible Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  classroom     Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  teacher       User      @relation(fields: [teacherUserId], references: [id], onDelete: Cascade)
+
+  @@unique([classroomId, teacherUserId])
+  @@index([teacherUserId])
+}
+
+model ClassStudent {
+  id           String    @id @default(cuid())
+  classroomId  String
+  studentUserId String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  classroom    Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  student      User      @relation(fields: [studentUserId], references: [id], onDelete: Cascade)
+
+  @@unique([classroomId, studentUserId])
+  @@index([studentUserId])
+}
+
+model Activity {
+  id                    String      @id @default(cuid())
+  classroomId           String
+  title                 String
+  mode                  ActivityMode
+  examStartAt           DateTime
+  examEndAt             DateTime
+  rubricFactualWeight   Int
+  rubricCharacterWeight Int
+  rubricInterpretWeight Int
+  rubricConsistencyWeight Int
+  rubricEvidenceWeight  Int
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  classroom             Classroom   @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  books                 ActivityBook[]
+  studentBooks          ActivityStudentBook[]
+  evaluationSessions    EvaluationSession[]
+
+  @@index([classroomId])
+}
+
+model ActivityBook {
+  id         String   @id @default(cuid())
+  activityId String
+  bookId     String
+  createdAt  DateTime @default(now())
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, bookId])
+  @@index([bookId])
+}
+
+model ActivityStudentBook {
+  id         String   @id @default(cuid())
+  activityId String
+  studentId  String
+  bookId     String
+  cycleNo    Int      @default(1)
+  createdAt  DateTime @default(now())
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, studentId, cycleNo])
+  @@index([studentId])
+  @@index([bookId])
+}
+
+model EvaluationSession {
+  id         String                 @id @default(cuid())
+  activityId String
+  studentId  String
+  bookId     String
+  status     EvaluationSessionStatus @default(IN_PROGRESS)
+  startedAt  DateTime               @default(now())
+  endedAt    DateTime?
+  activity   Activity               @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student    User                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  book       Book                   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  messages   EvaluationMessage[]
+  result     EvaluationResult?
+
+  @@index([activityId, studentId])
+}
+
+model EvaluationMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  session   EvaluationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+model EvaluationResult {
+  id              String   @id @default(cuid())
+  sessionId       String   @unique
+  reviewerUserId  String?
+  factualScore    Int
+  characterScore  Int
+  interpretScore  Int
+  consistencyScore Int
+  evidenceScore   Int
+  finalScore      Int
+  confidence      Int
+  summary         String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  session         EvaluationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  reviewer        User?    @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
+}
